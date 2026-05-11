@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useScroll, useSpring, useTransform, motion } from 'framer-motion';
+import Link from 'next/link';
 
 const FRAME_COUNT = 120;
 
@@ -168,11 +169,13 @@ export default function CoffeeScrollScene() {
         </motion.div>
 
         {/* Landing Page Branding */}
-        <div className="absolute top-8 left-8 md:left-12 z-30 pointer-events-none">
-          <h1 className="text-white text-2xl md:text-3xl font-bold tracking-tighter drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-            RITIK'S COFFEE SHOP
-          </h1>
-          <p className="text-white/80 text-xs md:text-sm font-light drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+        <div className="absolute top-8 left-8 md:left-12 z-30 pointer-events-none flex flex-col">
+          <Link href="/info" className="pointer-events-auto hover:opacity-80 transition-opacity">
+            <h1 className="text-white text-2xl md:text-3xl font-bold tracking-tighter drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+              RITIK'S COFFEE SHOP
+            </h1>
+          </Link>
+          <p className="text-white/80 text-xs md:text-sm font-light drop-shadow-[0_0_15px_rgba(0,0,0,0.5)] mt-1">
             welcome to taste the engineer's coffee
           </p>
         </div>
