@@ -233,9 +233,11 @@ export default function CoffeeScrollScene() {
             <p className="text-white/80 text-lg md:text-2xl font-light tracking-wide mb-12 drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
               Crafted for those who appreciate the anomaly.
             </p>
-            <button className="px-12 py-4 border border-white/20 bg-white/5 hover:bg-white/10 transition-colors rounded-full text-white uppercase tracking-widest text-sm backdrop-blur-sm pointer-events-auto cursor-pointer drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-              ORDER THE EXPERIENCE
-            </button>
+            <Link href="/order">
+              <button className="px-12 py-4 border border-white/20 bg-white/5 hover:bg-white/10 transition-colors rounded-full text-white uppercase tracking-widest text-sm backdrop-blur-sm pointer-events-auto cursor-pointer drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                ORDER THE EXPERIENCE
+              </button>
+            </Link>
           </motion.div>
 
         </div>
