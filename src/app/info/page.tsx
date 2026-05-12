@@ -53,7 +53,7 @@ export default function InfoPage() {
                 </li>
                 <li className="flex items-center space-x-3">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#EAC678]" />
-                  <span>PythonGenAI , machine learning And DataScinece</span>
+                  <span>PythonGenAI</span>
                 </li>
                 <li className="flex items-center space-x-3">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#EAC678]" />
