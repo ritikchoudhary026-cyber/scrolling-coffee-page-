@@ -9,6 +9,7 @@ const FRAME_COUNT = 120;
 export default function CoffeeScrollScene() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const bgCanvasRef = useRef<HTMLCanvasElement>(null);
   const [images, setImages] = useState<HTMLImageElement[]>([]);
   const [loadedCount, setLoadedCount] = useState(0);
 
@@ -54,10 +55,12 @@ export default function CoffeeScrollScene() {
     if (images.length === 0 || loadedCount < FRAME_COUNT) return;
 
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const bgCanvas = bgCanvasRef.current;
+    if (!canvas || !bgCanvas) return;
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const bgCtx = bgCanvas.getContext('2d');
+    if (!ctx || !bgCtx) return;
 
     // Set canvas internal resolution to match a high quality aspect ratio, e.g., 1920x1080
     // If the actual images have different dimensions, we use the first loaded image dimensions if possible
@@ -73,6 +76,8 @@ export default function CoffeeScrollScene() {
 
     canvas.width = cw;
     canvas.height = ch;
+    bgCanvas.width = cw;
+    bgCanvas.height = ch;
 
     let animationFrameId: number;
 
@@ -88,6 +93,9 @@ export default function CoffeeScrollScene() {
       if (img && img.complete && img.naturalWidth !== 0) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+        bgCtx.drawImage(img, 0, 0, bgCanvas.width, bgCanvas.height);
       } else {
         // Fallback or skip drawing if frame is missing
       }
@@ -152,9 +160,15 @@ export default function CoffeeScrollScene() {
           </div>
         )}
 
+        {/* Background Blurred Canvas */}
+        <canvas
+          ref={bgCanvasRef}
+          className="absolute inset-0 w-full h-full object-cover object-center z-0 filter blur-[80px] opacity-30 scale-110 saturate-150"
+        />
+
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full object-cover md:object-contain object-center z-0"
+          className="absolute inset-0 w-full h-full object-contain object-center z-0"
         />
 
         {/* Scroll Indicator */}
