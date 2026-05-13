@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ritik's Coffee Shop",
   description: "Welcome to taste the engineer's coffee. A portfolio by Ritik Choudhary.",
+  icons: {
+    icon: '/icon.png?v=2',
+  },
 };
 
 export default function RootLayout({
