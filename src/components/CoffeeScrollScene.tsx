@@ -154,7 +154,7 @@ export default function CoffeeScrollScene() {
 
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full object-contain object-center z-0"
+          className="absolute inset-0 w-full h-full object-cover md:object-contain object-center z-0"
         />
 
         {/* Scroll Indicator */}
@@ -181,17 +181,17 @@ export default function CoffeeScrollScene() {
         </div>
 
         {/* Text Overlays - Scrollytelling Beats */}
-        <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-center px-8 md:px-24">
+        <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-center px-4 md:px-24">
 
           {/* Beat A (0-20%) */}
           <motion.div
             style={{ opacity: opacityA, y: yA }}
             className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center text-center"
           >
-            <h2 className="text-white text-5xl md:text-7xl lg:text-9xl font-bold tracking-tighter mb-6 drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <h2 className="text-white text-4xl sm:text-5xl md:text-7xl lg:text-9xl font-bold tracking-tighter mb-4 md:mb-6 drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
               CEREMONIAL CRAFT
             </h2>
-            <p className="text-white/80 text-lg md:text-2xl font-light tracking-wide max-w-2xl drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <p className="text-white/80 text-base sm:text-lg md:text-2xl font-light tracking-wide max-w-2xl drop-shadow-[0_0_15px_rgba(0,0,0,0.5)] px-4 md:px-0">
               Where precision engineering meets the art of the perfect pour.
             </p>
           </motion.div>
@@ -199,12 +199,12 @@ export default function CoffeeScrollScene() {
           {/* Beat B (25-45%) */}
           <motion.div
             style={{ opacity: opacityB, y: yB }}
-            className="absolute left-8 md:left-24 top-1/2 -translate-y-1/2 flex flex-col items-start text-left"
+            className="absolute left-4 md:left-24 top-1/2 -translate-y-1/2 flex flex-col items-start text-left"
           >
-            <h2 className="text-white text-5xl md:text-7xl lg:text-9xl font-bold tracking-tighter mb-6 max-w-4xl drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <h2 className="text-white text-4xl sm:text-5xl md:text-7xl lg:text-9xl font-bold tracking-tighter mb-4 md:mb-6 max-w-4xl drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
               KINETIC CHILL
             </h2>
-            <p className="text-white/80 text-lg md:text-2xl font-light tracking-wide max-w-md drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <p className="text-white/80 text-base sm:text-lg md:text-2xl font-light tracking-wide max-w-md drop-shadow-[0_0_15px_rgba(0,0,0,0.5)] px-4 md:px-0">
               Crystalline spheres suspended in a moment of absolute freshness.
             </p>
           </motion.div>
@@ -212,12 +212,12 @@ export default function CoffeeScrollScene() {
           {/* Beat C (50-70%) */}
           <motion.div
             style={{ opacity: opacityC, y: yC }}
-            className="absolute right-8 md:right-24 top-1/2 -translate-y-1/2 flex flex-col items-end text-right"
+            className="absolute right-4 md:right-24 top-1/2 -translate-y-1/2 flex flex-col items-end text-right"
           >
-            <h2 className="text-white text-5xl md:text-7xl lg:text-9xl font-bold tracking-tighter mb-6 drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <h2 className="text-white text-4xl sm:text-5xl md:text-7xl lg:text-9xl font-bold tracking-tighter mb-4 md:mb-6 drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
               VELVET FUSION
             </h2>
-            <p className="text-white/80 text-lg md:text-2xl font-light tracking-wide max-w-md drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <p className="text-white/80 text-base sm:text-lg md:text-2xl font-light tracking-wide max-w-md drop-shadow-[0_0_15px_rgba(0,0,0,0.5)] px-4 md:px-0">
               Dark roast espresso colliding with ceremonial grade matcha.
             </p>
           </motion.div>
@@ -227,14 +227,14 @@ export default function CoffeeScrollScene() {
             style={{ opacity: opacityD, y: yD }}
             className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center text-center"
           >
-            <h2 className="text-white text-5xl md:text-7xl lg:text-9xl font-bold tracking-tighter mb-8 drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <h2 className="text-white text-4xl sm:text-5xl md:text-7xl lg:text-9xl font-bold tracking-tighter mb-4 md:mb-8 drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
               THE ULTIMATE SIP
             </h2>
-            <p className="text-white/80 text-lg md:text-2xl font-light tracking-wide mb-12 drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <p className="text-white/80 text-base sm:text-lg md:text-2xl font-light tracking-wide mb-8 md:mb-12 drop-shadow-[0_0_15px_rgba(0,0,0,0.5)] px-4 md:px-0">
               Crafted for those who appreciate the anomaly.
             </p>
             <Link href="/order">
-              <button className="px-12 py-4 border border-white/20 bg-white/5 hover:bg-white/10 transition-colors rounded-full text-white uppercase tracking-widest text-sm backdrop-blur-sm pointer-events-auto cursor-pointer drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+              <button className="px-8 md:px-12 py-3 md:py-4 border border-white/20 bg-white/5 hover:bg-white/10 transition-colors rounded-full text-white uppercase tracking-widest text-xs md:text-sm backdrop-blur-sm pointer-events-auto cursor-pointer drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">
                 ORDER THE EXPERIENCE
               </button>
             </Link>
