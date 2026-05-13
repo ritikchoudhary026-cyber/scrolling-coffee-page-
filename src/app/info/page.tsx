@@ -10,7 +10,7 @@ export default function InfoPage() {
 
       {/* Content Container */}
       <div className="z-10 max-w-4xl w-full flex flex-col space-y-6">
-        
+
         {/* Back Button */}
         <div className="self-start pl-2 md:pl-0">
           <Link href="/" className="group flex items-center space-x-2 text-white/60 hover:text-white transition-colors">
@@ -25,7 +25,7 @@ export default function InfoPage() {
 
           <header className="space-y-4">
             <h1 className="text-3xl md:text-6xl font-bold tracking-tighter bg-gradient-to-br from-white via-gray-200 to-gray-500 text-transparent bg-clip-text">
-              Ritik Choudhary
+              RITIK CHOUDHARY
             </h1>
             <p className="text-lg md:text-2xl font-light text-white/80 tracking-wide">
               Engineer • Creator • Python Developer • GenAI
