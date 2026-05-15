@@ -5,10 +5,11 @@ import { useState } from 'react';
 import { sendOtp, verifyOtp } from '@/app/actions/auth';
 
 export default function InfoSection() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'login' | 'otp' | 'logged_in'>('login');
+  const [step, setStep] = useState<'login' | 'signup' | 'otp' | 'logged_in'>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -185,6 +186,7 @@ export default function InfoSection() {
             <h3 className="text-[#EAC678] text-sm uppercase tracking-widest mb-2">Secure Access</h3>
             <h4 className="text-2xl font-medium text-white mb-6">
               {step === 'login' && 'Login to your account'}
+              {step === 'signup' && 'Create your account'}
               {step === 'otp' && 'Enter OTP verification'}
               {step === 'logged_in' && 'Welcome back!'}
             </h4>
@@ -193,6 +195,48 @@ export default function InfoSection() {
               <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
                 {error}
               </div>
+            )}
+
+            {step === 'signup' && (
+              <form className="space-y-4" onSubmit={handleSendOtp}>
+                <div>
+                  <input 
+                    type="text" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Full Name" 
+                    required
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#EAC678]/50 focus:ring-1 focus:ring-[#EAC678]/50 transition-all font-light"
+                  />
+                </div>
+                <div>
+                  <input 
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email Address" 
+                    required
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#EAC678]/50 focus:ring-1 focus:ring-[#EAC678]/50 transition-all font-light"
+                  />
+                </div>
+                <div>
+                  <input 
+                    type="password" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Password" 
+                    required
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#EAC678]/50 focus:ring-1 focus:ring-[#EAC678]/50 transition-all font-light"
+                  />
+                </div>
+                
+                <button 
+                  disabled={loading}
+                  className="w-full py-4 bg-white text-black hover:bg-gray-200 transition-colors rounded-xl font-medium uppercase tracking-widest text-sm mt-2 disabled:opacity-50"
+                >
+                  {loading ? 'Sending OTP...' : 'Sign Up'}
+                </button>
+              </form>
             )}
 
             {step === 'login' && (
@@ -273,10 +317,11 @@ export default function InfoSection() {
                   <span className="text-green-400 text-2xl">✓</span>
                 </div>
                 <h5 className="text-xl font-medium text-white mb-2">Authentication Successful</h5>
-                <p className="text-white/50 text-sm mb-8">You have successfully logged in to your account.</p>
+                <p className="text-white/50 text-sm mb-8">You have successfully authenticated your account.</p>
                 <button 
                   onClick={() => {
                     setStep('login');
+                    setName('');
                     setEmail('');
                     setPassword('');
                     setOtp('');
@@ -290,7 +335,13 @@ export default function InfoSection() {
             
             {step === 'login' && (
               <p className="text-center text-white/40 text-sm mt-6">
-                New here? <a href="#" className="text-white hover:text-[#EAC678] transition-colors">Create an account</a>
+                New here? <button onClick={() => setStep('signup')} className="text-white hover:text-[#EAC678] transition-colors ml-1">Create an account</button>
+              </p>
+            )}
+            
+            {step === 'signup' && (
+              <p className="text-center text-white/40 text-sm mt-6">
+                Already have an account? <button onClick={() => setStep('login')} className="text-white hover:text-[#EAC678] transition-colors ml-1">Sign in</button>
               </p>
             )}
           </motion.div>
