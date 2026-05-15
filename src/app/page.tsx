@@ -1,5 +1,6 @@
 import ScrollScene from '@/components/CoffeeScrollScene';
 import ReviewsSection from '@/components/ReviewsSection';
+import InfoSection from '@/components/InfoSection';
 
 export default function Home() {
   return (
@@ -9,6 +10,9 @@ export default function Home() {
 
       {/* Dynamic Reviews Section */}
       <ReviewsSection />
+
+      {/* Dashboard & Info Section */}
+      <InfoSection />
 
       {/* Contacts / Footer Section */}
       <footer className="py-24 px-8 md:px-24 bg-gradient-to-b from-[#050505] to-[#111] relative z-20 border-t border-white/10">
