@@ -13,7 +13,7 @@ export async function sendOtp(email: string) {
   console.log(`🔐 OTP for ${email}: ${otp}`);
   console.log(`================================\n`);
   
-  return { success: true };
+  return { success: true, mockOtp: otp };
 }
 
 export async function verifyOtp(email: string, otp: string) {

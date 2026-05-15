@@ -19,8 +19,12 @@ export default function InfoSection() {
     setLoading(true);
     setError('');
     try {
-      await sendOtp(email);
+      const res = await sendOtp(email);
       setStep('otp');
+      if (res.mockOtp) {
+        // Show the OTP directly in an alert so it doesn't require checking the terminal
+        alert(`[Demo OTP] Your verification code is: ${res.mockOtp}`);
+      }
     } catch (err) {
       setError('Failed to send OTP. Try again.');
     }
@@ -211,10 +215,10 @@ export default function InfoSection() {
                 </div>
                 <div>
                   <input 
-                    type="email" 
+                    type="text" 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email Address" 
+                    placeholder="Email or Phone Number" 
                     required
                     className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#EAC678]/50 focus:ring-1 focus:ring-[#EAC678]/50 transition-all font-light"
                   />
@@ -243,10 +247,10 @@ export default function InfoSection() {
               <form className="space-y-4" onSubmit={handleSendOtp}>
                 <div>
                   <input 
-                    type="email" 
+                    type="text" 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email Address" 
+                    placeholder="Email or Phone Number" 
                     required
                     className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#EAC678]/50 focus:ring-1 focus:ring-[#EAC678]/50 transition-all font-light"
                   />
