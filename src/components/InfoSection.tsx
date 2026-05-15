@@ -1,8 +1,48 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { sendOtp, verifyOtp } from '@/app/actions/auth';
 
 export default function InfoSection() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState<'login' | 'otp' | 'logged_in'>('login');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    setLoading(true);
+    setError('');
+    try {
+      await sendOtp(email);
+      setStep('otp');
+    } catch (err) {
+      setError('Failed to send OTP. Try again.');
+    }
+    setLoading(false);
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await verifyOtp(email, otp);
+      if (res.success) {
+        setStep('logged_in');
+      } else {
+        setError(res.error || 'Invalid OTP');
+      }
+    } catch (err) {
+      setError('Failed to verify OTP');
+    }
+    setLoading(false);
+  };
   return (
     <section className="py-24 px-8 md:px-24 bg-[#050505] relative z-20 border-t border-white/5">
       <div className="max-w-7xl mx-auto">
@@ -143,40 +183,116 @@ export default function InfoSection() {
             <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-[#EAC678]/50 to-transparent"></div>
             
             <h3 className="text-[#EAC678] text-sm uppercase tracking-widest mb-2">Secure Access</h3>
-            <h4 className="text-2xl font-medium text-white mb-6">Login to your account</h4>
+            <h4 className="text-2xl font-medium text-white mb-6">
+              {step === 'login' && 'Login to your account'}
+              {step === 'otp' && 'Enter OTP verification'}
+              {step === 'logged_in' && 'Welcome back!'}
+            </h4>
             
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-              <div>
-                <input 
-                  type="email" 
-                  placeholder="Email Address" 
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#EAC678]/50 focus:ring-1 focus:ring-[#EAC678]/50 transition-all font-light"
-                />
+            {error && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+                {error}
               </div>
-              <div>
-                <input 
-                  type="password" 
-                  placeholder="Password" 
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#EAC678]/50 focus:ring-1 focus:ring-[#EAC678]/50 transition-all font-light"
-                />
+            )}
+
+            {step === 'login' && (
+              <form className="space-y-4" onSubmit={handleSendOtp}>
+                <div>
+                  <input 
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email Address" 
+                    required
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#EAC678]/50 focus:ring-1 focus:ring-[#EAC678]/50 transition-all font-light"
+                  />
+                </div>
+                <div>
+                  <input 
+                    type="password" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Password" 
+                    required
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#EAC678]/50 focus:ring-1 focus:ring-[#EAC678]/50 transition-all font-light"
+                  />
+                </div>
+                
+                <div className="flex justify-between items-center py-2">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox" className="rounded border-white/20 bg-black/50 text-[#EAC678] focus:ring-[#EAC678]/50 w-4 h-4" />
+                    <span className="text-white/50 text-sm">Remember me</span>
+                  </label>
+                  <a href="#" className="text-[#EAC678] text-sm hover:underline">Forgot?</a>
+                </div>
+                
+                <button 
+                  disabled={loading}
+                  className="w-full py-4 bg-white text-black hover:bg-gray-200 transition-colors rounded-xl font-medium uppercase tracking-widest text-sm mt-2 disabled:opacity-50"
+                >
+                  {loading ? 'Sending OTP...' : 'Sign In'}
+                </button>
+              </form>
+            )}
+
+            {step === 'otp' && (
+              <form className="space-y-4" onSubmit={handleVerifyOtp}>
+                <p className="text-white/50 text-sm mb-4">
+                  We sent a 6-digit verification code to <span className="text-white">{email}</span>. Please check your terminal console.
+                </p>
+                <div>
+                  <input 
+                    type="text" 
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="Enter 6-digit OTP" 
+                    required
+                    maxLength={6}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#EAC678]/50 focus:ring-1 focus:ring-[#EAC678]/50 transition-all font-light text-center tracking-[0.5em] text-xl"
+                  />
+                </div>
+                <button 
+                  disabled={loading}
+                  className="w-full py-4 bg-[#EAC678] text-black hover:bg-white transition-colors rounded-xl font-medium uppercase tracking-widest text-sm mt-2 disabled:opacity-50"
+                >
+                  {loading ? 'Verifying...' : 'Verify & Continue'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setStep('login')}
+                  className="w-full py-2 text-white/40 hover:text-white text-sm transition-colors mt-2"
+                >
+                  Back to login
+                </button>
+              </form>
+            )}
+
+            {step === 'logged_in' && (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-6">
+                  <span className="text-green-400 text-2xl">✓</span>
+                </div>
+                <h5 className="text-xl font-medium text-white mb-2">Authentication Successful</h5>
+                <p className="text-white/50 text-sm mb-8">You have successfully logged in to your account.</p>
+                <button 
+                  onClick={() => {
+                    setStep('login');
+                    setEmail('');
+                    setPassword('');
+                    setOtp('');
+                  }}
+                  className="px-6 py-2 border border-white/10 rounded-xl text-white/60 hover:text-white hover:bg-white/5 transition-colors text-sm"
+                >
+                  Sign Out
+                </button>
               </div>
-              
-              <div className="flex justify-between items-center py-2">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input type="checkbox" className="rounded border-white/20 bg-black/50 text-[#EAC678] focus:ring-[#EAC678]/50 w-4 h-4" />
-                  <span className="text-white/50 text-sm">Remember me</span>
-                </label>
-                <a href="#" className="text-[#EAC678] text-sm hover:underline">Forgot?</a>
-              </div>
-              
-              <button className="w-full py-4 bg-white text-black hover:bg-gray-200 transition-colors rounded-xl font-medium uppercase tracking-widest text-sm mt-2">
-                Sign In
-              </button>
-            </form>
+            )}
             
-            <p className="text-center text-white/40 text-sm mt-6">
-              New here? <a href="#" className="text-white hover:text-[#EAC678] transition-colors">Create an account</a>
-            </p>
+            {step === 'login' && (
+              <p className="text-center text-white/40 text-sm mt-6">
+                New here? <a href="#" className="text-white hover:text-[#EAC678] transition-colors">Create an account</a>
+              </p>
+            )}
           </motion.div>
         </div>
       </div>
