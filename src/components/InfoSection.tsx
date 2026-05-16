@@ -6,11 +6,11 @@ import { auth, db, storage } from '@/lib/firebase';
 import {
   onAuthStateChanged,
   User,
-  signInWithCustomToken,
+  signInWithEmailAndPassword,
   updateProfile,
   signOut
 } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface UserProfile {
@@ -53,11 +53,11 @@ export default function InfoSection() {
       setUser(currentUser);
       if (currentUser) {
         setStep('logged_in');
-        // Fetch profile from Firestore using phone (stored in displayName as identifier)
-        const phoneKey = currentUser.phoneNumber?.replace('+91', '') || '';
-        if (phoneKey) {
+        // Extract phone from fake email format: 9876543210@coffeeapp.app
+        const emailPhone = currentUser.email?.replace('@coffeeapp.app', '') || '';
+        if (emailPhone) {
           try {
-            const userDocRef = doc(db, 'users', phoneKey);
+            const userDocRef = doc(db, 'users', emailPhone);
             const userDoc = await getDoc(userDocRef);
             if (userDoc.exists()) {
               setProfile(userDoc.data() as UserProfile);
@@ -157,16 +157,18 @@ export default function InfoSection() {
     setLoading(true);
     setError('');
     try {
+      // 1. Verify OTP via API
       const res = await fetch('/api/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizePhone(phone), otp }),
+        body: JSON.stringify({ phone: normalizePhone(phone), otp, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Sign in with custom Firebase token
-      await signInWithCustomToken(auth, data.customToken);
+      // 2. Sign into Firebase Auth using email+password (no admin SDK needed)
+      const fakeEmail = `${normalizePhone(phone)}@coffeeapp.app`;
+      await signInWithEmailAndPassword(auth, fakeEmail, password);
 
       if (data.userProfile) {
         setProfile(data.userProfile);

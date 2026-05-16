@@ -1,90 +1,99 @@
 import { NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebase-admin';
+
+const PROJECT_ID = 'ritik-coffe-db';
+const FIREBASE_API_KEY = 'AIzaSyBa9Ce0S7p3VYR4i0pTJuCQg2_TMXKxn0A';
+const firestoreBase = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+
+async function getFirestoreDoc(collection: string, docId: string) {
+  const url = `${firestoreBase}/${collection}/${encodeURIComponent(docId)}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (data.error) return null;
+  const fields = data.fields || {};
+  const parsed: Record<string, any> = {};
+  for (const [key, val] of Object.entries(fields) as any) {
+    parsed[key] = val.stringValue ?? val.integerValue ?? val.booleanValue ?? null;
+  }
+  return parsed;
+}
+
+async function deleteFirestoreDoc(collection: string, docId: string) {
+  const url = `${firestoreBase}/${collection}/${encodeURIComponent(docId)}`;
+  await fetch(url, { method: 'DELETE' });
+}
+
+// Sign in to Firebase Auth using Email+Password REST API → returns idToken
+async function signInWithEmailPassword(email: string, password: string) {
+  const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, returnSecureToken: true }),
+  });
+  return res.json();
+}
 
 export async function POST(request: Request) {
   try {
-    const { phone, otp } = await request.json();
-
+    const { phone, otp, password } = await request.json();
     if (!phone || !otp) {
       return NextResponse.json({ error: 'Phone and OTP are required' }, { status: 400 });
     }
 
-    const normalizedPhone = phone.trim().replace(/\s/g, '');
+    const normalizedPhone = phone.trim().replace(/\s/g, '').replace('+91', '');
 
-    // Fetch OTP record from Firestore
-    const otpRef = adminDb.collection('otps').doc(normalizedPhone);
-    const otpDoc = await otpRef.get();
-
-    if (!otpDoc.exists) {
-      return NextResponse.json({ error: 'OTP not found or already used' }, { status: 400 });
+    // 1. Verify OTP from Firestore
+    const otpData = await getFirestoreDoc('otps', normalizedPhone);
+    if (!otpData) {
+      return NextResponse.json({ error: 'OTP not found or already used. Please request a new one.' }, { status: 400 });
     }
 
-    const otpData = otpDoc.data()!;
-
-    // Check expiry
     if (new Date(otpData.expiresAt) < new Date()) {
-      await otpRef.delete();
+      await deleteFirestoreDoc('otps', normalizedPhone);
       return NextResponse.json({ error: 'OTP has expired. Please request a new one.' }, { status: 400 });
     }
 
-    // Check OTP value
     if (otpData.otp !== otp.trim()) {
-      return NextResponse.json({ error: 'Invalid OTP' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid OTP. Please try again.' }, { status: 400 });
     }
 
-    // OTP is valid - delete it (one-time use)
-    await otpRef.delete();
+    // OTP is valid — delete it (one-time use)
+    await deleteFirestoreDoc('otps', normalizedPhone);
 
-    // Fetch user profile from Firestore
-    const userRef = adminDb.collection('users').doc(normalizedPhone);
-    const userDoc = await userRef.get();
-
-    if (!userDoc.exists) {
-      return NextResponse.json({ error: 'User account not found' }, { status: 404 });
+    // 2. Fetch user profile from Firestore
+    const userData = await getFirestoreDoc('users', normalizedPhone);
+    if (!userData) {
+      return NextResponse.json({ error: 'User profile not found.' }, { status: 404 });
     }
 
-    const userData = userDoc.data()!;
-
-    // Get or Create a Firebase Auth user for this phone (to generate a custom token)
-    let uid: string;
-    try {
-      // Try to get existing user by phoneNumber
-      const existingUser = await adminAuth.getUserByPhoneNumber(`+91${normalizedPhone.replace('+91', '')}`);
-      uid = existingUser.uid;
-    } catch (err: any) {
-      if (err.code === 'auth/user-not-found') {
-        // Create user in Firebase Auth
-        const newUser = await adminAuth.createUser({
-          phoneNumber: `+91${normalizedPhone.replace('+91', '')}`,
-          displayName: userData.name,
-        });
-        uid = newUser.uid;
-        // Update Firestore doc with uid
-        await userRef.update({ uid });
-      } else {
-        throw err;
+    // 3. Sign into Firebase Auth using the fake email (to get a real idToken for client)
+    //    We use the password stored by user during registration
+    //    If password not provided in this call, we use a placeholder (OTP login case)
+    const fakeEmail = `${normalizedPhone}@coffeeapp.app`;
+    const loginPassword = password || userData.password; // password must be passed from client
+    
+    let idToken = '';
+    if (password) {
+      const authResult = await signInWithEmailPassword(fakeEmail, password);
+      if (authResult.idToken) {
+        idToken = authResult.idToken;
       }
     }
 
-    // Generate custom token for client-side signIn
-    const customToken = await adminAuth.createCustomToken(uid);
-
-    return NextResponse.json({ 
-      success: true, 
-      customToken,
+    return NextResponse.json({
+      success: true,
+      idToken, // client uses this to sign in with Firebase
       userProfile: {
         name: userData.name,
         phone: userData.phone,
-        photoURL: userData.photoURL,
+        photoURL: userData.photoURL || '',
         memberSince: userData.memberSince,
-        brewPoints: userData.brewPoints,
-      }
+        brewPoints: Number(userData.brewPoints) || 0,
+      },
     });
-
   } catch (error: any) {
     console.error('Error in /api/verify-otp:', error);
-    return NextResponse.json({ 
-      error: error.message || 'Failed to verify OTP'
-    }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'OTP verification failed' }, { status: 500 });
   }
 }
