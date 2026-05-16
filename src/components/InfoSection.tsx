@@ -15,7 +15,9 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface UserProfile {
   name: string;
+  contact: string;
   phone: string;
+  email: string;
   photoURL: string;
   memberSince: string;
   brewPoints: number;
@@ -27,10 +29,11 @@ type Step = 'login' | 'password_check' | 'otp' | 'signup' | 'signup_otp' | 'logg
 export default function InfoSection() {
   // Form fields
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [contact, setContact] = useState(''); // phone number OR email
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<Step>('login');
+  const [isContactEmail, setIsContactEmail] = useState(false);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -73,38 +76,40 @@ export default function InfoSection() {
     return () => unsubscribe();
   }, []);
 
-  const normalizePhone = (p: string) => p.trim().replace(/\s/g, '').replace('+91', '');
+  const normalizeContact = (c: string) => {
+    const isEmail = c.includes('@');
+    return isEmail ? c.trim().toLowerCase() : c.trim().replace(/\s/g, '').replace('+91', '');
+  };
 
   // ─── SIGNUP FLOW ─────────────────────────────────────────────────────────────
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !phone || !password) return;
+    if (!name || !contact || !password) return;
     setLoading(true);
     setError('');
+    const isEmail = contact.includes('@');
+    setIsContactEmail(isEmail);
     try {
-      // 1. Register user (saves to Firestore with hashed password)
+      // 1. Register user
       const regRes = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone: normalizePhone(phone), password }),
+        body: JSON.stringify({ name, contact: normalizeContact(contact), password }),
       });
       const regData = await regRes.json();
       if (!regRes.ok) throw new Error(regData.error);
 
-      // 2. Send OTP to phone
+      // 2. Send OTP
       const otpRes = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizePhone(phone) }),
+        body: JSON.stringify({ contact: normalizeContact(contact) }),
       });
       const otpData = await otpRes.json();
       if (!otpRes.ok) throw new Error(otpData.error);
 
-      if (otpData.devOtp) {
-        setDevOtp(`[DEV] Your OTP: ${otpData.devOtp}`);
-      }
-
+      if (otpData.devOtp) setDevOtp(`[DEV] OTP: ${otpData.devOtp}`);
       setStep('signup_otp');
     } catch (err: any) {
       setError(err.message || 'Signup failed');
@@ -116,15 +121,17 @@ export default function InfoSection() {
 
   const handlePasswordCheck = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone || !password) return;
+    if (!contact || !password) return;
     setLoading(true);
     setError('');
+    const isEmail = contact.includes('@');
+    setIsContactEmail(isEmail);
     try {
       // 1. Verify password
       const res = await fetch('/api/verify-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizePhone(phone), password }),
+        body: JSON.stringify({ contact: normalizeContact(contact), password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -133,15 +140,12 @@ export default function InfoSection() {
       const otpRes = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizePhone(phone) }),
+        body: JSON.stringify({ contact: normalizeContact(contact) }),
       });
       const otpData = await otpRes.json();
       if (!otpRes.ok) throw new Error(otpData.error);
 
-      if (otpData.devOtp) {
-        setDevOtp(`[DEV] Your OTP: ${otpData.devOtp}`);
-      }
-
+      if (otpData.devOtp) setDevOtp(`[DEV] OTP: ${otpData.devOtp}`);
       setStep('otp');
     } catch (err: any) {
       setError(err.message || 'Login failed');
@@ -157,22 +161,21 @@ export default function InfoSection() {
     setLoading(true);
     setError('');
     try {
+      const normalContact = normalizeContact(contact);
       // 1. Verify OTP via API
       const res = await fetch('/api/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizePhone(phone), otp, password }),
+        body: JSON.stringify({ contact: normalContact, otp, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // 2. Sign into Firebase Auth using email+password (no admin SDK needed)
-      const fakeEmail = `${normalizePhone(phone)}@coffeeapp.app`;
-      await signInWithEmailAndPassword(auth, fakeEmail, password);
+      // 2. Sign into Firebase Auth
+      const firebaseEmail = isContactEmail ? normalContact : `${normalContact}@coffeeapp.app`;
+      await signInWithEmailAndPassword(auth, firebaseEmail, password);
 
-      if (data.userProfile) {
-        setProfile(data.userProfile);
-      }
+      if (data.userProfile) setProfile(data.userProfile);
       setDevOtp('');
       setStep('logged_in');
     } catch (err: any) {
@@ -187,7 +190,7 @@ export default function InfoSection() {
     await signOut(auth);
     setStep('login');
     setName('');
-    setPhone('');
+    setContact('');
     setPassword('');
     setOtp('');
     setProfile(null);
@@ -208,20 +211,16 @@ export default function InfoSection() {
     setLoading(true);
     try {
       let newPhotoURL = profile.photoURL || '';
+      const docKey = normalizeContact(profile.contact || profile.phone || profile.email || contact);
 
       if (editFile) {
-        const fileRef = ref(storage, `avatars/${normalizePhone(profile.phone || phone)}`);
+        const fileRef = ref(storage, `avatars/${docKey}`);
         await uploadBytes(fileRef, editFile);
         newPhotoURL = await getDownloadURL(fileRef);
       }
 
-      const phoneKey = normalizePhone(profile.phone || phone);
-      const userDocRef = doc(db, 'users', phoneKey);
-      await updateDoc(userDocRef, {
-        name: editName,
-        photoURL: newPhotoURL,
-      });
-
+      const userDocRef = doc(db, 'users', docKey);
+      await updateDoc(userDocRef, { name: editName, photoURL: newPhotoURL });
       await updateProfile(user, { displayName: editName, photoURL: newPhotoURL });
 
       setProfile(prev => prev ? { ...prev, name: editName, photoURL: newPhotoURL } : null);
@@ -334,7 +333,9 @@ export default function InfoSection() {
                     </div>
                     <div className="min-w-0">
                       <h4 className="text-xl font-medium text-white truncate">{profile.name}</h4>
-                      <p className="text-white/40 text-xs mt-1">{profile.phone ? `+91 ${profile.phone}` : ''}</p>
+                      <p className="text-white/40 text-xs mt-1 truncate">
+                        {profile.email || (profile.phone ? `+91 ${profile.phone}` : '')}
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-4">
@@ -470,8 +471,15 @@ export default function InfoSection() {
             {step === 'signup' && (
               <form className="space-y-4" onSubmit={handleSignup}>
                 <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" required className={inputClass} />
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone Number (e.g. 9876543210)" required className={inputClass} />
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Create Password" required minLength={6} className={inputClass} />
+                <input
+                  type="text"
+                  value={contact}
+                  onChange={e => setContact(e.target.value)}
+                  placeholder="Phone Number or Email"
+                  required
+                  className={inputClass}
+                />
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Create Password (min 6 chars)" required minLength={6} className={inputClass} />
                 <button disabled={loading} className={btnPrimary}>{loading ? 'Creating Account…' : 'Sign Up & Send OTP'}</button>
                 <p className="text-center text-white/40 text-sm mt-4">
                   Already have an account?{' '}
@@ -480,15 +488,18 @@ export default function InfoSection() {
               </form>
             )}
 
-            {/* ── LOGIN STEP 1: Phone + Password ── */}
+            {/* ── LOGIN STEP 1: Contact ── */}
             {step === 'login' && (
               <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setStep('password_check'); }}>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone Number (e.g. 9876543210)" required className={inputClass} />
-                <button
-                  type="submit"
-                  disabled={loading || !phone}
-                  className={btnPrimary}
-                >
+                <input
+                  type="text"
+                  value={contact}
+                  onChange={e => setContact(e.target.value)}
+                  placeholder="Phone Number or Email"
+                  required
+                  className={inputClass}
+                />
+                <button type="submit" disabled={loading || !contact} className={btnPrimary}>
                   Continue →
                 </button>
                 <p className="text-center text-white/40 text-sm mt-4">
@@ -502,11 +513,11 @@ export default function InfoSection() {
             {step === 'password_check' && (
               <form className="space-y-4" onSubmit={handlePasswordCheck}>
                 <div className="text-white/50 text-sm mb-2">
-                  Signing in as <span className="text-white">+91 {normalizePhone(phone)}</span>
+                  Signing in as <span className="text-white">{normalizeContact(contact)}</span>
                 </div>
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className={inputClass} />
-                <button disabled={loading} className={btnPrimary}>{loading ? 'Sending OTP…' : 'Send OTP'}</button>
-                <button type="button" onClick={() => { setStep('login'); setError(''); }} className="w-full py-2 text-white/40 hover:text-white text-sm transition-colors">← Change number</button>
+                <button disabled={loading} className={btnPrimary}>{loading ? 'Sending OTP…' : 'Verify & Send OTP'}</button>
+                <button type="button" onClick={() => { setStep('login'); setError(''); }} className="w-full py-2 text-white/40 hover:text-white text-sm transition-colors">← Change contact</button>
               </form>
             )}
 
@@ -514,7 +525,8 @@ export default function InfoSection() {
             {step === 'otp' && (
               <form className="space-y-4" onSubmit={handleVerifyOtp}>
                 <p className="text-white/50 text-sm">
-                  We sent a 6-digit OTP to <span className="text-white">+91 {normalizePhone(phone)}</span>. Enter it below.
+                  We sent a 6-digit OTP to <span className="text-white">{normalizeContact(contact)}</span>.
+                  {isContactEmail ? ' Check your inbox.' : ' Check your SMS.'}
                 </p>
                 <input
                   type="text" inputMode="numeric" value={otp}
@@ -531,7 +543,9 @@ export default function InfoSection() {
             {step === 'signup_otp' && (
               <form className="space-y-4" onSubmit={handleVerifyOtp}>
                 <p className="text-white/50 text-sm">
-                  OTP sent to <span className="text-white">+91 {normalizePhone(phone)}</span>. Enter it to activate your account.
+                  OTP sent to <span className="text-white">{normalizeContact(contact)}</span>.
+                  {isContactEmail ? ' Check your inbox.' : ' Check your SMS.'}
+                  Enter it to activate your account.
                 </p>
                 <input
                   type="text" inputMode="numeric" value={otp}
@@ -550,7 +564,9 @@ export default function InfoSection() {
                   <span className="text-green-400 text-2xl">✓</span>
                 </div>
                 <h5 className="text-xl font-medium text-white mb-1">Welcome, {profile?.name || 'User'}!</h5>
-                <p className="text-white/40 text-sm mb-8">+91 {normalizePhone(profile?.phone || phone)}</p>
+                <p className="text-white/40 text-sm mb-8 truncate max-w-full">
+                  {profile?.email || (profile?.phone ? `+91 ${profile.phone}` : normalizeContact(contact))}
+                </p>
                 <button onClick={handleSignOut} className="px-6 py-2 border border-white/10 rounded-xl text-white/60 hover:text-white hover:bg-white/5 transition-colors text-sm">
                   Sign Out
                 </button>

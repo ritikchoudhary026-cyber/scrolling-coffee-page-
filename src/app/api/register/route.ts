@@ -3,16 +3,14 @@ import bcrypt from 'bcryptjs';
 
 const PROJECT_ID = 'ritik-coffe-db';
 const FIREBASE_API_KEY = 'AIzaSyBa9Ce0S7p3VYR4i0pTJuCQg2_TMXKxn0A';
-
-// Helper: Firestore REST API base URL
 const firestoreBase = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
-// Helper: Set a Firestore document via REST
-async function setDoc(collection: string, docId: string, data: Record<string, any>) {
+async function setFirestoreDoc(collection: string, docId: string, data: Record<string, any>) {
   const fields: Record<string, any> = {};
   for (const [key, val] of Object.entries(data)) {
-    if (typeof val === 'string') fields[key] = { stringValue: val };
-    else if (typeof val === 'number') fields[key] = { integerValue: val };
+    if (val === null || val === undefined) fields[key] = { nullValue: null };
+    else if (typeof val === 'string') fields[key] = { stringValue: val };
+    else if (typeof val === 'number') fields[key] = { integerValue: String(val) };
     else if (typeof val === 'boolean') fields[key] = { booleanValue: val };
   }
   const url = `${firestoreBase}/${collection}/${encodeURIComponent(docId)}`;
@@ -24,14 +22,12 @@ async function setDoc(collection: string, docId: string, data: Record<string, an
   return res.json();
 }
 
-// Helper: Get a Firestore document via REST
-async function getDoc(collection: string, docId: string) {
+async function getFirestoreDoc(collection: string, docId: string) {
   const url = `${firestoreBase}/${collection}/${encodeURIComponent(docId)}`;
   const res = await fetch(url);
   if (!res.ok) return null;
   const data = await res.json();
   if (data.error) return null;
-  // Parse fields
   const fields = data.fields || {};
   const parsed: Record<string, any> = {};
   for (const [key, val] of Object.entries(fields) as any) {
@@ -40,8 +36,7 @@ async function getDoc(collection: string, docId: string) {
   return parsed;
 }
 
-// Helper: Create Firebase Auth user (Email+Password) via REST
-async function createFirebaseUser(email: string, password: string) {
+async function createFirebaseAuthUser(email: string, password: string) {
   const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`;
   const res = await fetch(url, {
     method: 'POST',
@@ -51,39 +46,52 @@ async function createFirebaseUser(email: string, password: string) {
   return res.json();
 }
 
-// Helper: Update Firebase Auth display name
 async function updateDisplayName(idToken: string, displayName: string) {
   const url = `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${FIREBASE_API_KEY}`;
   await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken, displayName, returnSecureToken: false }),
+    body: JSON.stringify({ idToken, displayName }),
   });
 }
 
 export async function POST(request: Request) {
   try {
-    const { name, phone, password } = await request.json();
-    if (!name || !phone || !password) {
-      return NextResponse.json({ error: 'Name, phone, and password are required' }, { status: 400 });
+    const { name, contact, password } = await request.json();
+
+    if (!name || !contact || !password) {
+      return NextResponse.json({ error: 'Name, phone/email, and password are required' }, { status: 400 });
     }
 
-    const normalizedPhone = phone.trim().replace(/\s/g, '').replace('+91', '');
-    const fakeEmail = `${normalizedPhone}@coffeeapp.app`;
+    if (password.length < 6) {
+      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+    }
 
-    // Check if user already exists in Firestore
-    const existingUser = await getDoc('users', normalizedPhone);
+    const isEmail = contact.includes('@') && !contact.endsWith('@coffeeapp.app');
+    // Normalize: for phone strip spaces/+91, for email use as-is
+    const normalizedContact = isEmail
+      ? contact.trim().toLowerCase()
+      : contact.trim().replace(/\s/g, '').replace('+91', '');
+
+    // The docId used in Firestore users collection
+    const docId = normalizedContact;
+
+    // Check if user already exists
+    const existingUser = await getFirestoreDoc('users', docId);
     if (existingUser) {
-      return NextResponse.json({ error: 'An account with this phone number already exists' }, { status: 409 });
+      return NextResponse.json({ error: 'An account with this email/phone already exists' }, { status: 409 });
     }
 
-    // Hash the password for Firestore (extra layer)
-    const hashedPassword = await bcrypt.hash(password, 12);
+    // Determine the actual Firebase Auth email
+    // - If real email → use directly
+    // - If phone → create fake email like 9876543210@coffeeapp.app
+    const firebaseEmail = isEmail ? normalizedContact : `${normalizedContact}@coffeeapp.app`;
 
     // Create Firebase Auth user
-    const authResult = await createFirebaseUser(fakeEmail, password);
+    const authResult = await createFirebaseAuthUser(firebaseEmail, password);
     if (authResult.error) {
-      return NextResponse.json({ error: authResult.error.message || 'Failed to create account' }, { status: 400 });
+      const msg = authResult.error.message || 'Failed to create account';
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
 
     // Update display name
@@ -91,21 +99,27 @@ export async function POST(request: Request) {
       await updateDisplayName(authResult.idToken, name);
     }
 
+    // Hash password for Firestore storage
+    const hashedPassword = await bcrypt.hash(password, 12);
+
     // Save user profile to Firestore
-    await setDoc('users', normalizedPhone, {
+    await setFirestoreDoc('users', docId, {
       name,
-      phone: normalizedPhone,
+      contact: normalizedContact,
+      isEmail: isEmail ? 'true' : 'false',
+      phone: isEmail ? '' : normalizedContact,
+      email: isEmail ? normalizedContact : '',
       password: hashedPassword,
       photoURL: '',
-      memberSince: new Date().getFullYear().toString(),
-      brewPoints: '100',
+      memberSince: String(new Date().getFullYear()),
+      brewPoints: 100,
       uid: authResult.localId || '',
       createdAt: new Date().toISOString(),
     });
 
-    return NextResponse.json({ success: true, message: 'Account created successfully' });
+    return NextResponse.json({ success: true, isEmail });
   } catch (error: any) {
     console.error('Error in /api/register:', error);
-    return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create account: ' + error.message }, { status: 500 });
   }
 }

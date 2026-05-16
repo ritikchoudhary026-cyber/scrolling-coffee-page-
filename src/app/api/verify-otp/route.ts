@@ -23,7 +23,6 @@ async function deleteFirestoreDoc(collection: string, docId: string) {
   await fetch(url, { method: 'DELETE' });
 }
 
-// Sign in to Firebase Auth using Email+Password REST API → returns idToken
 async function signInWithEmailPassword(email: string, password: string) {
   const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`;
   const res = await fetch(url, {
@@ -36,59 +35,64 @@ async function signInWithEmailPassword(email: string, password: string) {
 
 export async function POST(request: Request) {
   try {
-    const { phone, otp, password } = await request.json();
-    if (!phone || !otp) {
-      return NextResponse.json({ error: 'Phone and OTP are required' }, { status: 400 });
+    const { contact, otp, password } = await request.json();
+    if (!contact || !otp) {
+      return NextResponse.json({ error: 'Contact and OTP are required' }, { status: 400 });
     }
 
-    const normalizedPhone = phone.trim().replace(/\s/g, '').replace('+91', '');
+    const isEmail = contact.includes('@');
+    const normalizedContact = isEmail
+      ? contact.trim().toLowerCase()
+      : contact.trim().replace(/\s/g, '').replace('+91', '');
 
     // 1. Verify OTP from Firestore
-    const otpData = await getFirestoreDoc('otps', normalizedPhone);
+    const otpData = await getFirestoreDoc('otps', normalizedContact);
     if (!otpData) {
       return NextResponse.json({ error: 'OTP not found or already used. Please request a new one.' }, { status: 400 });
     }
-
     if (new Date(otpData.expiresAt) < new Date()) {
-      await deleteFirestoreDoc('otps', normalizedPhone);
+      await deleteFirestoreDoc('otps', normalizedContact);
       return NextResponse.json({ error: 'OTP has expired. Please request a new one.' }, { status: 400 });
     }
-
     if (otpData.otp !== otp.trim()) {
       return NextResponse.json({ error: 'Invalid OTP. Please try again.' }, { status: 400 });
     }
 
-    // OTP is valid — delete it (one-time use)
-    await deleteFirestoreDoc('otps', normalizedPhone);
+    // OTP valid — delete it
+    await deleteFirestoreDoc('otps', normalizedContact);
 
     // 2. Fetch user profile from Firestore
-    const userData = await getFirestoreDoc('users', normalizedPhone);
+    const userData = await getFirestoreDoc('users', normalizedContact);
     if (!userData) {
       return NextResponse.json({ error: 'User profile not found.' }, { status: 404 });
     }
 
-    // 3. Sign into Firebase Auth using the fake email (to get a real idToken for client)
-    //    We use the password stored by user during registration
-    //    If password not provided in this call, we use a placeholder (OTP login case)
-    const fakeEmail = `${normalizedPhone}@coffeeapp.app`;
-    const loginPassword = password || userData.password; // password must be passed from client
-    
+    // 3. Sign into Firebase Auth to get an idToken
+    // - real email users → use their email directly
+    // - phone users → use fake email format
+    const firebaseEmail = isEmail ? normalizedContact : `${normalizedContact}@coffeeapp.app`;
+
     let idToken = '';
     if (password) {
-      const authResult = await signInWithEmailPassword(fakeEmail, password);
+      const authResult = await signInWithEmailPassword(firebaseEmail, password);
       if (authResult.idToken) {
         idToken = authResult.idToken;
+      } else {
+        console.warn('Firebase sign-in failed:', authResult.error?.message);
       }
     }
 
     return NextResponse.json({
       success: true,
-      idToken, // client uses this to sign in with Firebase
+      idToken,
+      isEmail,
       userProfile: {
-        name: userData.name,
-        phone: userData.phone,
+        name: userData.name || '',
+        contact: userData.contact || normalizedContact,
+        phone: userData.phone || '',
+        email: userData.email || '',
         photoURL: userData.photoURL || '',
-        memberSince: userData.memberSince,
+        memberSince: userData.memberSince || String(new Date().getFullYear()),
         brewPoints: Number(userData.brewPoints) || 0,
       },
     });
