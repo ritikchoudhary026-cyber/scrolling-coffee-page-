@@ -2,11 +2,12 @@
 
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
-import { auth, db, storage } from '@/lib/firebase';
+import { auth, db, storage, googleProvider } from '@/lib/firebase';
 import {
   onAuthStateChanged,
   User,
   signInWithEmailAndPassword,
+  signInWithPopup,
   updateProfile,
   signOut
 } from 'firebase/auth';
@@ -41,7 +42,7 @@ export default function InfoSection() {
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [devOtp, setDevOtp] = useState(''); // shown in dev mode when no SMS API key is set
+  // OTP is always sent to email — never shown on screen
 
   // Auth state
   const [user, setUser] = useState<User | null>(null);
@@ -86,13 +87,51 @@ export default function InfoSection() {
 
   // ─── SIGNUP FLOW ─────────────────────────────────────────────────────────────
 
+  // Google Sign-In
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const gUser = result.user;
+      const email = gUser.email || '';
+      // Upsert profile in Firestore
+      const userDocRef = doc(db, 'users', email);
+      const userDoc = await getDoc(userDocRef);
+      if (!userDoc.exists()) {
+        await setDoc(userDocRef, {
+          name: gUser.displayName || '',
+          contact: email,
+          isEmail: 'true',
+          email,
+          phone: '',
+          photoURL: gUser.photoURL || '',
+          memberSince: String(new Date().getFullYear()),
+          brewPoints: 100,
+          uid: gUser.uid,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      const data = (await getDoc(userDocRef)).data();
+      if (data) setProfile(data as UserProfile);
+      setStep('logged_in');
+    } catch (err: any) {
+      setError(err.message || 'Google sign-in failed');
+    }
+    setLoading(false);
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !contact || !password) return;
     setLoading(true);
     setError('');
-    const isEmail = contact.includes('@');
-    setIsContactEmail(isEmail);
+    if (!contact.includes('@')) {
+      setError('Please enter a valid email address');
+      setLoading(false);
+      return;
+    }
+    setIsContactEmail(true);
     try {
       // 1. Register user
       const regRes = await fetch('/api/register', {
@@ -103,7 +142,7 @@ export default function InfoSection() {
       const regData = await regRes.json();
       if (!regRes.ok) throw new Error(regData.error);
 
-      // 2. Send OTP
+      // 2. Send OTP to email
       const otpRes = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,7 +151,6 @@ export default function InfoSection() {
       const otpData = await otpRes.json();
       if (!otpRes.ok) throw new Error(otpData.error);
 
-      if (otpData.devOtp) setDevOtp(`[DEV] OTP: ${otpData.devOtp}`);
       setStep('signup_otp');
     } catch (err: any) {
       setError(err.message || 'Signup failed');
@@ -139,7 +177,7 @@ export default function InfoSection() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // 2. Send OTP
+      // 2. Send OTP to email
       const otpRes = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -148,7 +186,6 @@ export default function InfoSection() {
       const otpData = await otpRes.json();
       if (!otpRes.ok) throw new Error(otpData.error);
 
-      if (otpData.devOtp) setDevOtp(`[DEV] OTP: ${otpData.devOtp}`);
       setStep('otp');
     } catch (err: any) {
       setError(err.message || 'Login failed');
@@ -199,7 +236,6 @@ export default function InfoSection() {
     setConfirmPassword('');
     setOtp('');
     setProfile(null);
-    setDevOtp('');
     setError('');
   };
 
@@ -230,7 +266,6 @@ export default function InfoSection() {
       });
       const otpData = await otpRes.json();
       if (!otpRes.ok) throw new Error(otpData.error);
-      if (otpData.devOtp) setDevOtp(`[DEV] OTP: ${otpData.devOtp}`);
       setStep('forgot_otp');
     } catch (err: any) {
       setError(err.message || 'Failed to send OTP');
@@ -575,50 +610,64 @@ export default function InfoSection() {
               </div>
             )}
 
-            {devOtp && (
-              <div className="mb-4 p-3 bg-[#EAC678]/10 border border-[#EAC678]/30 rounded-xl text-[#EAC678] text-sm font-mono">
-                {devOtp}
-              </div>
-            )}
-
             {/* ── SIGNUP FORM ── */}
             {step === 'signup' && (
               <form className="space-y-4" onSubmit={handleSignup}>
                 <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" required className={inputClass} />
                 <input
-                  type="text"
+                  type="email"
                   value={contact}
                   onChange={e => setContact(e.target.value)}
-                  placeholder="Phone Number or Email"
+                  placeholder="Email Address"
                   required
                   className={inputClass}
                 />
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Create Password (min 6 chars)" required minLength={6} className={inputClass} />
                 <button disabled={loading} className={btnPrimary}>{loading ? 'Creating Account…' : 'Sign Up & Send OTP'}</button>
-                <p className="text-center text-white/40 text-sm mt-4">
+                <div className="relative flex items-center my-2">
+                  <div className="flex-1 border-t border-white/10" />
+                  <span className="mx-3 text-white/30 text-xs">OR</span>
+                  <div className="flex-1 border-t border-white/10" />
+                </div>
+                <button type="button" onClick={handleGoogleSignIn} disabled={loading}
+                  className="w-full py-3 flex items-center justify-center gap-3 border border-white/10 rounded-xl text-white hover:bg-white/5 transition-colors text-sm font-medium">
+                  <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 13 24 13c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5.1l-6.2-5.2C29.4 35.5 26.8 36 24 36c-5.3 0-9.7-3.1-11.3-7.5L6.1 33.8C9.5 39.7 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.1-2.1 3.9-3.8 5.3l6.2 5.2C41.4 35 44 30 44 24c0-1.2-.1-2.4-.4-3.5z"/></svg>
+                  Continue with Google
+                </button>
+                <p className="text-center text-white/40 text-sm mt-2">
                   Already have an account?{' '}
-                  <button type="button" onClick={() => { setStep('login'); setError(''); setDevOtp(''); }} className="text-white hover:text-[#EAC678] transition-colors">Sign in</button>
+                  <button type="button" onClick={() => { setStep('login'); setError(''); }} className="text-white hover:text-[#EAC678] transition-colors">Sign in</button>
                 </p>
               </form>
             )}
 
-            {/* ── LOGIN STEP 1: Contact ── */}
+            {/* ── LOGIN STEP 1: Email ── */}
             {step === 'login' && (
               <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setStep('password_check'); }}>
                 <input
-                  type="text"
+                  type="email"
                   value={contact}
                   onChange={e => setContact(e.target.value)}
-                  placeholder="Phone Number or Email"
+                  placeholder="Email Address"
                   required
                   className={inputClass}
                 />
                 <button type="submit" disabled={loading || !contact} className={btnPrimary}>
                   Continue →
                 </button>
-                <p className="text-center text-white/40 text-sm mt-4">
+                <div className="relative flex items-center my-1">
+                  <div className="flex-1 border-t border-white/10" />
+                  <span className="mx-3 text-white/30 text-xs">OR</span>
+                  <div className="flex-1 border-t border-white/10" />
+                </div>
+                <button type="button" onClick={handleGoogleSignIn} disabled={loading}
+                  className="w-full py-3 flex items-center justify-center gap-3 border border-white/10 rounded-xl text-white hover:bg-white/5 transition-colors text-sm font-medium">
+                  <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 19 13 24 13c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5.1l-6.2-5.2C29.4 35.5 26.8 36 24 36c-5.3 0-9.7-3.1-11.3-7.5L6.1 33.8C9.5 39.7 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.1-2.1 3.9-3.8 5.3l6.2 5.2C41.4 35 44 30 44 24c0-1.2-.1-2.4-.4-3.5z"/></svg>
+                  Continue with Google
+                </button>
+                <p className="text-center text-white/40 text-sm mt-2">
                   New here?{' '}
-                  <button type="button" onClick={() => { setStep('signup'); setError(''); setDevOtp(''); }} className="text-white hover:text-[#EAC678] transition-colors">Create an account</button>
+                  <button type="button" onClick={() => { setStep('signup'); setError(''); }} className="text-white hover:text-[#EAC678] transition-colors">Create an account</button>
                 </p>
               </form>
             )}
@@ -648,8 +697,7 @@ export default function InfoSection() {
             {step === 'otp' && (
               <form className="space-y-4" onSubmit={handleVerifyOtp}>
                 <p className="text-white/50 text-sm">
-                  We sent a 6-digit OTP to <span className="text-white">{normalizeContact(contact)}</span>.
-                  {isContactEmail ? ' Check your inbox.' : ' Check your SMS.'}
+                  We sent a 6-digit OTP to <span className="text-white">{normalizeContact(contact)}</span>. Check your inbox.
                 </p>
                 <input
                   type="text" inputMode="numeric" value={otp}
@@ -666,9 +714,7 @@ export default function InfoSection() {
             {step === 'signup_otp' && (
               <form className="space-y-4" onSubmit={handleVerifyOtp}>
                 <p className="text-white/50 text-sm">
-                  OTP sent to <span className="text-white">{normalizeContact(contact)}</span>.
-                  {isContactEmail ? ' Check your inbox.' : ' Check your SMS.'}
-                  Enter it to activate your account.
+                  OTP sent to <span className="text-white">{normalizeContact(contact)}</span>. Check your inbox and enter the 6-digit code to activate your account.
                 </p>
                 <input
                   type="text" inputMode="numeric" value={otp}
@@ -680,20 +726,20 @@ export default function InfoSection() {
               </form>
             )}
 
-            {/* ── FORGOT: Enter contact ── */}
+            {/* ── FORGOT: Enter email ── */}
             {step === 'forgot' && (
               <form className="space-y-4" onSubmit={handleForgotSendOtp}>
-                <p className="text-white/50 text-sm">Enter your registered phone or email. We'll send you an OTP to reset your password.</p>
+                <p className="text-white/50 text-sm">Enter your registered email. We'll send an OTP to reset your password.</p>
                 <input
-                  type="text"
+                  type="email"
                   value={contact}
                   onChange={e => setContact(e.target.value)}
-                  placeholder="Phone Number or Email"
+                  placeholder="Email Address"
                   required
                   className={inputClass}
                 />
                 <button disabled={loading} className={btnPrimary}>{loading ? 'Sending OTP…' : 'Send Reset OTP'}</button>
-                <button type="button" onClick={() => { setStep('login'); setError(''); setDevOtp(''); }} className="w-full py-2 text-white/40 hover:text-white text-sm transition-colors">← Back to login</button>
+                <button type="button" onClick={() => { setStep('login'); setError(''); }} className="w-full py-2 text-white/40 hover:text-white text-sm transition-colors">← Back to login</button>
               </form>
             )}
 
@@ -701,8 +747,7 @@ export default function InfoSection() {
             {step === 'forgot_otp' && (
               <form className="space-y-4" onSubmit={handleForgotVerifyOtp}>
                 <p className="text-white/50 text-sm">
-                  OTP sent to <span className="text-white">{normalizeContact(contact)}</span>.
-                  {isContactEmail ? ' Check your inbox.' : ' Check your SMS.'}
+                  OTP sent to <span className="text-white">{normalizeContact(contact)}</span>. Check your inbox.
                 </p>
                 <input
                   type="text" inputMode="numeric" value={otp}

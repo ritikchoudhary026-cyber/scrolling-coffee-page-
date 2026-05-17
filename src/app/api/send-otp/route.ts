@@ -6,7 +6,7 @@ const firestoreBase = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID
 
 async function saveOtp(docId: string, otp: string) {
   const expiresAt = new Date();
-  expiresAt.setMinutes(expiresAt.getMinutes() + 5);
+  expiresAt.setMinutes(expiresAt.getMinutes() + 10); // 10 min expiry
   const url = `${firestoreBase}/otps/${encodeURIComponent(docId)}`;
   await fetch(url, {
     method: 'PATCH',
@@ -26,7 +26,8 @@ async function sendEmailOtp(email: string, otp: string): Promise<boolean> {
   const emailPass = process.env.EMAIL_PASS;
 
   if (!emailUser || !emailPass) {
-    console.log(`\n📧 [DEV MODE] Email OTP for ${email}: ${otp}\n`);
+    // In dev mode — log to server console ONLY, never send to client
+    console.log(`\n📧 [DEV] OTP for ${email} → ${otp} (set EMAIL_USER & EMAIL_PASS in .env.local to send real emails)\n`);
     return true;
   }
 
@@ -38,69 +39,53 @@ async function sendEmailOtp(email: string, otp: string): Promise<boolean> {
   await transporter.sendMail({
     from: `"Anti-Gravity Coffee" <${emailUser}>`,
     to: email,
-    subject: 'Your Login OTP – Anti-Gravity Coffee',
+    subject: '☕ Your OTP – Anti-Gravity Coffee',
     html: `
-      <div style="font-family:sans-serif;background:#050505;padding:40px;color:#fff;border-radius:12px;max-width:480px;margin:auto;">
-        <h2 style="color:#EAC678;margin-bottom:8px;">Your OTP Code</h2>
-        <p style="color:#aaa;">Use the code below to verify your identity. It expires in 5 minutes.</p>
-        <div style="font-size:36px;font-weight:bold;letter-spacing:12px;color:#EAC678;background:#111;padding:20px;border-radius:8px;text-align:center;margin:24px 0;">${otp}</div>
-        <p style="color:#555;font-size:12px;">If you didn't request this, please ignore this email.</p>
+      <div style="font-family:'Helvetica Neue',sans-serif;background:#050505;padding:48px 40px;color:#fff;border-radius:16px;max-width:500px;margin:auto;">
+        <div style="margin-bottom:32px;">
+          <h1 style="color:#EAC678;font-size:22px;font-weight:600;margin:0 0 4px;">Anti-Gravity Coffee</h1>
+          <p style="color:#555;font-size:13px;margin:0;">Crafting experiences that defy gravity ☕</p>
+        </div>
+        <hr style="border:none;border-top:1px solid #1a1a1a;margin-bottom:32px;"/>
+        <h2 style="color:#fff;font-size:18px;font-weight:500;margin:0 0 8px;">Your Verification Code</h2>
+        <p style="color:#777;font-size:14px;margin:0 0 28px;line-height:1.6;">
+          Use the code below to verify your identity. This code expires in <strong style="color:#EAC678;">10 minutes</strong>.
+        </p>
+        <div style="font-size:42px;font-weight:700;letter-spacing:16px;color:#EAC678;background:#0d0d0d;border:1px solid #222;padding:24px 20px;border-radius:12px;text-align:center;margin-bottom:28px;">
+          ${otp}
+        </div>
+        <p style="color:#444;font-size:12px;line-height:1.6;margin:0;">
+          If you didn't request this code, you can safely ignore this email. Someone may have typed your email address by mistake.
+        </p>
+        <hr style="border:none;border-top:1px solid #1a1a1a;margin-top:32px;margin-bottom:20px;"/>
+        <p style="color:#333;font-size:11px;text-align:center;margin:0;">Anti-Gravity Coffee · Secure Access System</p>
       </div>
     `,
   });
   return true;
 }
 
-async function sendSmsOtp(phone: string, otp: string): Promise<boolean> {
-  const apiKey = process.env.FAST2SMS_API_KEY;
-  if (!apiKey) {
-    console.log(`\n📱 [DEV MODE] SMS OTP for +91${phone}: ${otp}\n`);
-    return true;
-  }
-
-  const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
-    method: 'POST',
-    headers: { authorization: apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ route: 'otp', variables_values: otp, numbers: phone }),
-  });
-  const data = await response.json();
-  console.log('Fast2SMS response:', data);
-  return data.return === true;
-}
-
 export async function POST(request: Request) {
   try {
     const { contact } = await request.json();
-    if (!contact) return NextResponse.json({ error: 'Contact is required' }, { status: 400 });
+    if (!contact) return NextResponse.json({ error: 'Email is required' }, { status: 400 });
 
-    const isEmail = contact.includes('@');
-    const normalizedContact = isEmail
-      ? contact.trim().toLowerCase()
-      : contact.trim().replace(/\s/g, '').replace('+91', '');
+    // Only email supported now
+    const email = contact.trim().toLowerCase();
+    if (!email.includes('@')) {
+      return NextResponse.json({ error: 'Please enter a valid email address' }, { status: 400 });
+    }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    await saveOtp(normalizedContact, otp);
+    await saveOtp(email, otp);
 
-    let sent = false;
-    if (isEmail) {
-      sent = await sendEmailOtp(normalizedContact, otp);
-    } else {
-      sent = await sendSmsOtp(normalizedContact, otp);
-    }
-
+    const sent = await sendEmailOtp(email, otp);
     if (!sent) {
-      return NextResponse.json({ error: 'Failed to send OTP' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to send OTP email' }, { status: 500 });
     }
 
-    const isDev = isEmail
-      ? !process.env.EMAIL_USER
-      : !process.env.FAST2SMS_API_KEY;
-
-    return NextResponse.json({
-      success: true,
-      isEmail,
-      ...(isDev && { devOtp: otp }),
-    });
+    // NEVER send OTP back to client — always goes to email only
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error in /api/send-otp:', error);
     return NextResponse.json({ error: 'Failed to send OTP: ' + error.message }, { status: 500 });
