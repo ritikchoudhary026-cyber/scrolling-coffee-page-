@@ -216,7 +216,7 @@ export default function InfoSection() {
       await signInWithEmailAndPassword(auth, firebaseEmail, password);
 
       if (data.userProfile) setProfile(data.userProfile);
-      setDevOtp('');
+
       setStep('logged_in');
     } catch (err: any) {
       setError(err.message || 'OTP verification failed');
@@ -309,7 +309,7 @@ export default function InfoSection() {
       setOtp('');
       setNewPassword('');
       setConfirmPassword('');
-      setDevOtp('');
+
       setError('');
       alert('✅ Password reset successfully! Please log in with your new password.');
     } catch (err: any) {
@@ -682,7 +682,7 @@ export default function InfoSection() {
                 <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={() => { setStep('forgot'); setError(''); setOtp(''); setDevOtp(''); }}
+                    onClick={() => { setStep('forgot'); setError(''); setOtp(''); }}
                     className="text-[#EAC678] text-sm hover:underline"
                   >
                     Forgot password?
@@ -706,7 +706,7 @@ export default function InfoSection() {
                   className={`${inputClass} text-center tracking-[0.6em] text-xl`}
                 />
                 <button disabled={loading} className={btnGold}>{loading ? 'Verifying…' : 'Verify & Log In'}</button>
-                <button type="button" onClick={() => { setStep('password_check'); setOtp(''); setError(''); setDevOtp(''); }} className="w-full py-2 text-white/40 hover:text-white text-sm transition-colors">← Back</button>
+                <button type="button" onClick={() => { setStep('password_check'); setOtp(''); setError(''); }} className="w-full py-2 text-white/40 hover:text-white text-sm transition-colors">← Back</button>
               </form>
             )}
 

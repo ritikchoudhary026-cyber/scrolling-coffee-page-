@@ -37,13 +37,13 @@ async function sendEmailOtp(email: string, otp: string): Promise<boolean> {
   });
 
   await transporter.sendMail({
-    from: `"Anti-Gravity Coffee" <${emailUser}>`,
+    from: `"Ritik Coffee Shop" <${emailUser}>`,
     to: email,
-    subject: '☕ Your OTP – Anti-Gravity Coffee',
+    subject: '☕ Your OTP – Ritik Coffee Shop',
     html: `
       <div style="font-family:'Helvetica Neue',sans-serif;background:#050505;padding:48px 40px;color:#fff;border-radius:16px;max-width:500px;margin:auto;">
         <div style="margin-bottom:32px;">
-          <h1 style="color:#EAC678;font-size:22px;font-weight:600;margin:0 0 4px;">Anti-Gravity Coffee</h1>
+          <h1 style="color:#EAC678;font-size:22px;font-weight:600;margin:0 0 4px;">Ritik Coffee Shop</h1>
           <p style="color:#555;font-size:13px;margin:0;">Crafting experiences that defy gravity ☕</p>
         </div>
         <hr style="border:none;border-top:1px solid #1a1a1a;margin-bottom:32px;"/>
@@ -58,7 +58,7 @@ async function sendEmailOtp(email: string, otp: string): Promise<boolean> {
           If you didn't request this code, you can safely ignore this email. Someone may have typed your email address by mistake.
         </p>
         <hr style="border:none;border-top:1px solid #1a1a1a;margin-top:32px;margin-bottom:20px;"/>
-        <p style="color:#333;font-size:11px;text-align:center;margin:0;">Anti-Gravity Coffee · Secure Access System</p>
+        <p style="color:#333;font-size:11px;text-align:center;margin:0;">Ritik Coffee Shop · Secure Access System</p>
       </div>
     `,
   });
