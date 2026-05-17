@@ -11,7 +11,7 @@ import {
   updateProfile,
   signOut
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface UserProfile {
@@ -48,11 +48,33 @@ export default function InfoSection() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
+  // Orders state
+  const [orders, setOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
   // Profile editing
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editFile, setEditFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch orders for a user
+  const fetchOrders = async (email: string) => {
+    setOrdersLoading(true);
+    try {
+      const q = query(
+        collection(db, 'orders'),
+        where('userEmail', '==', email),
+        orderBy('createdAt', 'desc')
+      );
+      const snap = await getDocs(q);
+      setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.error('Error fetching orders', e);
+      setOrders([]);
+    }
+    setOrdersLoading(false);
+  };
 
   // Listen to Firebase Auth state changes
   useEffect(() => {
@@ -60,7 +82,6 @@ export default function InfoSection() {
       setUser(currentUser);
       if (currentUser) {
         setStep('logged_in');
-        // Extract phone from fake email format: 9876543210@coffeeapp.app
         const emailPhone = currentUser.email?.replace('@coffeeapp.app', '') || '';
         if (emailPhone) {
           try {
@@ -69,12 +90,15 @@ export default function InfoSection() {
             if (userDoc.exists()) {
               setProfile(userDoc.data() as UserProfile);
             }
+            // Fetch this user's orders
+            await fetchOrders(emailPhone);
           } catch (e) {
             console.error('Error fetching profile', e);
           }
         }
       } else {
         setProfile(null);
+        setOrders([]);
       }
     });
     return () => unsubscribe();
@@ -551,32 +575,46 @@ export default function InfoSection() {
             </div>
 
             {user ? (
-              <div className="space-y-4">
-                {[
-                  { id: 'ORD-8923', item: 'Ethiopian Yirgacheffe Pour Over', date: 'May 12, 2026', status: 'Delivered', price: '$8.50' },
-                  { id: 'ORD-8841', item: 'Double Espresso Black', date: 'May 10, 2026', status: 'Delivered', price: '$4.20' },
-                  { id: 'ORD-8719', item: 'Anti-Gravity Blend Beans (1lb)', date: 'May 05, 2026', status: 'Processing', price: '$24.00' },
-                ].map((order, i) => (
-                  <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 rounded-2xl bg-white/[0.01] hover:bg-white/[0.03] transition-colors border border-transparent hover:border-white/5 cursor-pointer group">
-                    <div className="mb-3 sm:mb-0">
-                      <div className="flex items-center space-x-3 mb-1">
-                        <span className="text-white font-medium">{order.item}</span>
-                        <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${order.status === 'Delivered' ? 'bg-green-500/10 text-green-400' : 'bg-[#EAC678]/10 text-[#EAC678]'}`}>
-                          {order.status}
-                        </span>
+              ordersLoading ? (
+                <div className="flex items-center justify-center h-48 text-white/30 text-sm">
+                  <span className="animate-pulse">Loading orders…</span>
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-white/30 text-sm">
+                  <span className="text-3xl mb-3">☕</span>
+                  <p>No orders yet. Start brewing!</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {orders.map((order, i) => (
+                    <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 rounded-2xl bg-white/[0.01] hover:bg-white/[0.03] transition-colors border border-transparent hover:border-white/5 cursor-pointer group">
+                      <div className="mb-3 sm:mb-0">
+                        <div className="flex items-center space-x-3 mb-1">
+                          <span className="text-white font-medium">{order.item || order.itemName}</span>
+                          <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            order.status === 'Delivered' ? 'bg-green-500/10 text-green-400' :
+                            order.status === 'Cancelled' ? 'bg-red-500/10 text-red-400' :
+                            'bg-[#EAC678]/10 text-[#EAC678]'
+                          }`}>
+                            {order.status || 'Processing'}
+                          </span>
+                        </div>
+                        <div className="text-white/40 text-xs">
+                          {order.orderId || order.id} • {order.date || (order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '')}
+                        </div>
                       </div>
-                      <div className="text-white/40 text-xs">{order.id} • {order.date}</div>
+                      <div className="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-end">
+                        <span className="text-white/80 font-mono">₹{order.price || order.amount}</span>
+                        <button className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/50 group-hover:bg-white/10 group-hover:text-white transition-all">→</button>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-end">
-                      <span className="text-white/80 font-mono">{order.price}</span>
-                      <button className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/50 group-hover:bg-white/10 group-hover:text-white transition-all">→</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )
             ) : (
-              <div className="flex items-center justify-center h-48 text-white/30 text-sm">
-                Log in to view your recent orders.
+              <div className="flex flex-col items-center justify-center h-48 text-white/30 text-sm">
+                <span className="text-3xl mb-3">🔒</span>
+                <p>Log in to view your orders</p>
               </div>
             )}
           </motion.div>
